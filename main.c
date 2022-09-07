@@ -5,6 +5,7 @@
 #include <math.h>
 #define vec2sub Vector2Subtract
 #define vec2add Vector2Add
+#define vec2addval Vector2AddValue
 #define vec2len Vector2Length
 #define vec2scl Vector2Scale
 #define vec2ang Vector2Angle
@@ -67,12 +68,18 @@ int main(void)
 	vec2 *Velocities = NULL;
 	vec2 tempV[boids];
 
+	int separation = 50;
+
 	initBoids(&Positions, &Velocities, boids, &size);
 
 
     while (!WindowShouldClose())
     {
-		// GAME LOGIC HERE
+		if (IsKeyPressed(KEY_S)) {
+				separation += 5;
+				printf("%d\n", separation);
+		}
+
 		for (int i = 0; i < boids; i++) {
 			vec2 vel = Velocities[i];
 			Positions[i] = vec2add(Positions[i], Velocities[i]);
@@ -85,13 +92,15 @@ int main(void)
 				if (abs(vec2dist(Positions[i], Positions[j])) < 150) {
 					dir = vec2add(dir, vec2norm(Velocities[j]));
 					dir = vec2norm(dir);
-					if (abs(vec2dist(Positions[i], Positions[j])) < 30) { // separation
-						// should do the same as with tempV but with tempP :3
+					if (abs(vec2dist(Positions[i], Positions[j])) < separation) { // separation
+						float difx = Positions[i].x - Positions[j].x;
+						float dify = Positions[i].y - Positions[j].y;
+						Positions[i] = (vec2){Positions[i].x + 0.02 * difx, Positions[i].y + 0.02 * dify};
+						Positions[j] = (vec2){Positions[j].x - 0.02 * difx, Positions[j].y - 0.02 * dify};
 					}
 				}
 			}
 			tempV[i] = vec2scl(dir, SPEED);
-			printf("%f\n", vec2len(vec2scl(dir, SPEED)));
 		}
 
 
