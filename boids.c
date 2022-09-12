@@ -30,14 +30,18 @@ static uint32_t winW;
 static uint32_t winH;
 
 static const uint32_t alingmentSeparation = 150 * 150;
+uint32_t separateSeparation = 50 * 50;
 static const uint32_t boidSize = 15;
 static const uint32_t boidSpeed = 5;
+
+bool blahaj = false;
+bool separate = true;
 
 enum {
 	MAX_BOIDS = 30,
 };
 
-static float distsqr2(Vector2 v1, Vector2 v2)
+static float32_t distsqr2(Vector2 v1, Vector2 v2)
 {
     return ((v1.x - v2.x)*(v1.x - v2.x) + (v1.y - v2.y)*(v1.y - v2.y));
 }
@@ -63,28 +67,49 @@ static float32_t angle(vec2 dir)
 	return (atan2f(dir.y, dir.x) + PI) * (180/PI);
 }
 
-float gauss(float x, float tightness)
-{
-	return expf(-tightness * x);
-}
+static Image boidImage;
+static Texture2D boidTexture;
 
 static inline void drawBoids(vec2 pos[], vec2 vel[])
 {
 	for (size_t i = 0; i < MAX_BOIDS; i++) {
-		DrawPoly(pos[i], 3, boidSize, angle(vel[i]) + 90, RED);
-		DrawLineV(pos[i], add2(pos[i], scl2(unit2(vel[i]), 20)), BLUE);
+		if (blahaj) DrawTextureEx(boidTexture, pos[i], angle(vel[i]), 0.08, WHITE);
+		else {
+			DrawPoly(pos[i], 3, boidSize, angle(vel[i]) + 90, RED);
+			DrawLineV(pos[i], add2(pos[i], scl2(unit2(vel[i]), 20)), BLUE);
+		}
 	}
 }
 
+// adjusts the direction vectors of boids i and j, to align graudually to the their average,
+// with the suddenness of the turn determined by the tightness, if already aligned then
+// don't bother doing the calculations
 static void alignBoids(vec2 pos[], vec2 dir[], size_t i, size_t j)
 {
-	static const float tightness = 1.0/5000;
-	float distanceSquared = distsqr2(pos[i], pos[j]);
-	if (len2(sub2(dir[i], dir[j])) > 0.02 && distanceSquared < alingmentSeparation) {
+	static const float32_t tightness = 1.0f / 5000.0f;  // dictates severity of turn based on separation
+	float32_t distanceSquared = distsqr2(pos[i], pos[j]);
+
+	if (lensqr2(sub2(dir[i], dir[j])) > 0.001 && distanceSquared < alingmentSeparation) {
 		vec2 final = unit2(add2(dir[i], dir[j]));
-		vec2 softener = scl2(final, gauss(distanceSquared, tightness));
+		vec2 softener = scl2(final, expf(-distanceSquared * tightness));
 		dir[i] = unit2(add2(dir[i], softener));
 		dir[j] = unit2(add2(dir[j], softener));
+	}
+}
+
+static void separateBoids(vec2 pos[], vec2 dir[], size_t i, size_t j)
+{
+	float32_t distanceSquared = distsqr2(pos[i], pos[j]);
+	static const float tightness = 1.0f / 500.0f;
+
+	if (distanceSquared < (separateSeparation)) {
+		vec2 mid = {(pos[i].x + pos[j].x)/2, (pos[i].y + pos[j].y)/2};
+		float scaler = expf(-distanceSquared * tightness); // scale the dirs by this
+		vec2 difi = sub2(pos[i], mid);
+		vec2 difj = sub2(pos[j], mid);
+		//printf("%f\n", scaler);
+		dir[i] = unit2(add2(dir[i], scl2(difi, scaler)));
+		dir[j] = unit2(add2(dir[j], scl2(difj, scaler)));
 	}
 }
 
@@ -95,6 +120,7 @@ static inline void moveBoids(vec2 pos[], vec2 vel[])
 		pos[i].x = fmodf(fmodf(pos[i].x, winW) + winW, winW);
 		pos[i].y = fmodf(fmodf(pos[i].y, winH) + winH, winH);
 		for (size_t j = i + 1; j < MAX_BOIDS; j++) {
+			if (separate) separateBoids(pos, vel, i, j);
 			alignBoids(pos, vel, i, j);
 		}
 	}
@@ -112,11 +138,27 @@ int main()
 	vec2 pos[MAX_BOIDS];
 	vec2 vel[MAX_BOIDS];
 
+
+	// Init positions & velocities
 	initBoids(pos, vel);
+	// Init textures
+	boidImage = LoadImage("crappycutout.png");
+	ImageFormat(&boidImage, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8);
+	boidTexture = LoadTextureFromImage(boidImage);
+
 
 	while (!WindowShouldClose()) {
 		// Update
-		moveBoids(pos, vel);
+		if (!IsKeyDown(KEY_M)) moveBoids(pos, vel);
+		if (IsKeyPressed(KEY_B)) blahaj = !blahaj;
+		if (IsKeyPressed(KEY_S)) {
+			separate = !separate;
+			printf("separate is now %d\n", separate);
+		}
+		if (IsKeyDown(KEY_W)) {
+			separateSeparation += 100;
+			printf("square separation distance is %d\n", separateSeparation);
+		}
 
 		// Draw
 		BeginDrawing();
